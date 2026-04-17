@@ -12,7 +12,7 @@
 **   - FIX: Missing colon in QUANTITY_LINE concatenation
 **   - FIX: Missing colon between QUANTITY_LINE and @(13,15) position
 **   - FIX: DCOUNT now uses @VM consistently with field access
-** (MVAI-5) - Enhanced UPDATE.ORDER and Fixed multiple bugs across subroutines
+** (MVAI-5) - Enhance Sales Order Process and make interactive and Fixed multiple bugs across subroutines
 **   - FIX: ADRRESS typo corrected to ADDRESS (lines 136,138)
 **   - FIX: Missing END ELSE block for READU CLIENT.REC
 **   - FIX: OREDR.REC typo corrected to ORDER.REC in ALTER_RECORD
