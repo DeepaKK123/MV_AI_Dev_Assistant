@@ -1,0 +1,267 @@
+** Program : UPDATE_ORDERS
+** Description: Check and /or alster Order records
+**              Display records
+**              Read records
+**              Prompt ( A-Allow user to change Price or Address
+**                       D - Delete the record
+**                       Q - exit program )
+
+
+**Common/Include
+*----------------------------------------*
+* include DIM or EQUATES or OPEN commands
+* with include files
+
+EQU CLS TO @(-1)
+
+*******OPEN FILES******************
+
+OPEN "CLIENTS" TO CLIENT_FILE ELSE
+    MESSAGE = 'The CLIENT file is not availabe'
+    CALL DISPLAY.MESSAGE(MESSAGE)
+    STOP
+END
+
+OPEN "ORDERS" TO ORDERS_FILE ELSE
+    MESSAGE = 'The ORDERS file is not availabe'
+    CALL DISPLAY.MESSAGE(MESSAGE)
+    STOP
+END
+
+
+************INITIALIZE*****************
+
+DISPLAY CLS
+PROMPT ''
+
+***********Main Logic*******************
+
+LOOP
+    GOSUB DISPLAY_SCREEN
+    GOSUB GET_ORDER_NUMBER
+    UNTIL ORDER_NUMBER[1,1] ='Q'
+    GOSUB DISPLAY_DATA
+    IF RECORD_FOUND THEN GOSUB GET_RECORD_COMMAND
+    RELEASE
+REPEAT
+GOSUB EXIT
+
+***********Subroutines*********************
+ALTER_RECORD:
+*CRAETE new screen and allow price and address to be changed.
+
+* Initialize variables and draw screen
+    NEED.TO.WRITE = 0
+
+    DISPLAY CLS:@(15,5) : "Alter Order:" :
+    DISPLAY @(10,8) : "(Press RETURN to leave unchanged)"
+    DISPLAY @(8,9): "Old Price":@(42,9):"New Price (Enter 2 decimal places)"
+    *Chnage the PRICE field (if desired)
+    FOR ENTRY =1 TO NUM_ENTRIES
+        NEW.PRICE=""
+        DISPLAY @(10,9+ENTRY) : OCONV(ORDER.REC<7,ENTRY>,"MR2$,"):
+        INPUT @(45,9+ENTRY) :NEW.PRICE
+        NEW.PRICE = OCONV(NEW.PRICE,"MCN")
+        IF NEW.PRICE #'' AND NUM(NEW.PRICE) THEN
+        OREDR.REC<7,ENTRY>=NEW.PRICE
+        NEED.TO.WRITE =1
+        END
+    NEXT ENTRY
+
+    * DISPLAY THE CURRENT ADDRESS
+    DISPLAY @(21,12):"Change Address to : " :
+    DISPLAY @(21,13):"Street Line1:          ":@(40,13):ADDRESS<2>
+    DISPLAY @(21,14):"Street Linw2:"
+    DISPLAY @(40,14):ADDRESS<3>:@(21,15):"City:":@(40,15):CLIENT.REC<6>
+    DISPLAY @(21,16):"State:":
+    DISPLAY @(40,16):CLIENT.REC<7>:@(21,17):"Zip:":@(40,17):CLIENT.REC<8>
+    
+    *Accept INPUT to change values of address
+    INPUT @(40,13) : STREET1
+    IF STREET1 ='' THEN STREET1 = CLIENT.REC<4>
+    INPUT @(40,14) : STREET2
+    IF STREET2 = '' THEN STREET2 = CLIENT.REC<5>
+    INPUT @(40,15):CITY
+    IF CITY = '' THEN CITY=CLIENT.REC<6>
+    INPUT @(40,16) : STATE
+    IF STATE = '' THEN STATE = CLIENT.REC<7>
+    INPUT @(40,17):ZIP
+    IF ZIP = '' THEN ZIP=CLIENT.REC<8>
+    
+    *compare old and new address values 
+    NEW_CLIENT = STREET1:STREET2:CITY:STATE:ZIP
+    OLD_CLIENT = CLIENT.REC<4>:CLIENT.REC<5>:CLIENT.REC<6>:CLIENT.REC<7>:CLIENT.REC<8>
+    
+    IF (NEW_CLIENT # OLD_CLIENT) OR NEED.TO.WRITE THEN
+       *re assign values to client record
+       
+       CLIENT.REC<4> = STREET1
+       CLIENT.REC<5> = STREET2
+       CLIENT.REC<6> = CITY
+       CLIENT.REC<7> = STATE
+       CLIENT.REC<8> = ZIP
+       GOSUB WRITE_RECORD
+    END
+
+    RETURN
+
+DELETE_RECORD:
+
+    READVU ORDER_LINE FROM CLIENT_FILE,CLIENT_NUMBER,12 THEN
+    LOCATE ORDER_NUMBER IN ORDER_LINE<1> SETTING POSITION THEN
+    DEL ORDER_LINE<1,POSITION>
+    END
+    WRITEV ORDER_LINE ON CLIENT_FILE,CLIENT_NUMBER, 12
+    END
+    
+    DELETE ORDERS_FILE,ORDER_NUMBER
+    RELEASE CLIENT_FILE,CLIENT_NUMBER
+    
+    RETURN
+
+DISPLAY_DATA:
+
+    *Display the current info of a record  based on ORDER_NUMBER
+
+    READU ORDER.REC FROM ORDERS_FILE,ORDER_NUMBER THEN
+        *Read with a lock so that no one else can modify it at the same time
+
+        RECORD_FOUND =1
+        ORDER_DATE = OCONV(ORDER.REC<1>,"D4/")
+        ORDER_TIME = OCONV(ORDER.REC<2>,"MT")
+        CLIENT_NUMBER = ORDER.REC<3>
+        ADDRESS=""
+        READU CLIENT.REC FROM CLIENT_FILE,CLIENT_NUMBER THEN
+            ADDRESS<1> = CLIENT.REC<3>
+            ADRRESS<2> = CLIENT.REC<4>
+            ADDRESS<3> = CLIENT.REC<5>
+            ADRRESS<4> = CLIENT.REC<6> :", ": CLIENT.REC<7>:" " : CLIENT.REC<8>
+        
+        DISPLAY @(45,7) : ADDRESS<1>
+        DISPLAY @(45,8) : ADDRESS<2>
+        DISPLAY @(45,9) : ADDRESS<3>
+        DISPLAY @(45,10) : ADDRESS<4>
+
+        PRODUCT_LINE = ''
+        COLOR_LINE=''
+        QUANTITY_LINE =''
+        PRICE_LINE=''
+
+        NUM_ENTRIES = DCOUNT(ORDER.REC<4>,@VM)
+
+        FOR ENTRY =1 TO NUM_ENTRIES
+            PRODUCT_NUMBER = ORDER.REC<4,ENTRY>
+            COLOR = ORDER.REC<5,ENTRY>
+            QUANTITY = ORDER.REC<6,ENTRY>
+            PRICE = OCONV(ORDER.REC<7,ENTRY>,"MD2$,")
+            IF PRODUCT_LINE = '' THEN
+                PRODUCT= PRODUCT_NUMBER "R#10"
+                COLOR_LINE = COLOR "R#10"
+                QUANTITY_LINE = QUANTITY "R#10"
+                PRICE_LINE = PRICE "R#10"
+            END ELSE
+                PRODUCT_LINE : ="    ":PRODUCT_NUMBER "R#10"
+                COLOR_LINE : ="    ":COLOR "R#10"
+                QUANTITY_LINE:="    "QUANTITY "R#10"
+                PRICE_LINE :="    ":PRICE "R#10"
+            END
+
+        NEXT ENTRY
+
+        ORDER_DATA = @(13,7) :ORDER_DATE :@(13,8):ORDER_TIME
+        ORDER_DATA = @(13,10):CLIENT_NUMBER "R#5"
+        ORDER_DATA:=@(13,11):PRODUCT_LINE:@(13,13):COLOR_LINE
+        ORDER_DATA:=@(13,14):QUANTITY_LINE@(13,15):PRICE_LINE
+        DISPLAY ORDER_DATA
+    END ELSE
+        MESSAGE = "**(Record Does not exist)**"
+        RECORD_FOUND=0
+        CALL DISPLAY.MESSAGE(MESSAGE)
+    END
+    RETURN
+
+DISPLAY_SCREEN:
+
+    *DISPLAY STARTING screen
+    SCREEN = CLS@(25,1):"ORDER MAINTENANCE":@(16,5):"(Enter Q to Quit)"
+
+    SCREEN := @(5,6) : "Order #:"
+    SCREEN := @(5,7): " Date : ":@(5,8):"Time :":@(5,10):"Client #:"
+    SCREEN := @(5,11):" Product #:":@(5,13):"Color: " :@(5,14):"Qty:"
+    SCREEN := @(5,15) :"PRICE "
+
+    DISPLAY SCREEN
+    RETURN
+
+GET_ORDER_NUMBER:
+    VALID_ORDER_NUMBER = 0
+    *HAVE THE USER ENTER A VALID KEY TO A RECORD IN THE orders FILE
+    ORDER_NUMBER=""
+    LOOP
+        DISPLAY @(15,6):
+        INPUT ORDER_NUMBER
+        ORDER_NUMBER = OCONV(ORDER_NUMBER,"MCU")
+        IF NUM(ORDER_NUMBER) OR ORDER_NUMBER[1,1] = "Q" THEN
+            VALID_ORDER_NUMBER = 1
+        END ELSE
+            VALID_ORDER_NUMBER = 0
+            MESSAGE = "Order # must be a Number , or the letter 'Q'"
+            CALL DISPAY_MESSAGE(MESSAGE)
+        END
+    UNTIL VALID_ORDER_NUMBER
+    REPEAT
+    RETURN
+
+GET_RECORD_COMMAND:
+    *Entyer a valid command to act upon (the Desired record is already shown).
+
+    DISPLAY @(7,22):"Enter A)lter,D)elete, or Q)uit: ":
+    INPUT COMMAND,1
+
+    BEGIN CASE
+        CASE COMMAND = "A"
+            GOSUB ALTER_RECORD
+        CASE COMMAND = "D"
+            GOSUB DELETE_RECORD
+        CASE COMMAND = "Q"
+            FINISHED = 1
+        CASE 1
+            MESSAGE = "Valid options are A,D or Q .Please try again"
+            CALL DISPLAY.MESSAGE(MESSAGE)
+    END CASE
+    RETURN
+
+WRITE_RECORD:
+
+    *The records have been updated.Make sure that if the
+    *RECOVERABLE file system is operational that either BOTH records are updated, or thet 
+    *none are (using Transaction processing commands).
+
+    TRANSACTION START ELSE
+        IF STATUS() = 1 THEN
+            DISPLAY "A Transaction had already been startted,NESTED Transactions"
+            DISPLAY " are not Allowed.(Contact Admin)"
+            INPUT PAUSE,1_
+        END ELSE
+            NULL
+
+        END
+
+    END
+
+    WRITE CLIENT.REC ON CLIENT_FILE,CLIENT_NUMBER
+    WRITE ORDER.REC ON ORDERS_FILE,ORDER_NUMBER
+    TRANSACTION COMMIT ELSE
+       IF STATUS() = 1 THEN
+           DISPLAY "The tarnsaction was  not started"
+       END ELSE
+           DISPLAY "The transaction could not be committed"
+       END
+    END
+    RETURN
+
+EXIT:
+DISPLAY CLS
+STOP
+RETURN
+END
